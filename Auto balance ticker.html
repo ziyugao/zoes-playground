@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trade Restrictions — Auto-balance</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --border-base: rgba(255, 255, 255, 0.08);
+    --border-danger: #fa4244;
+    --highlight-red: #fa4244;
+    --highlight-green: #2ec27e;
+    --fg-base: #f6f6f6;
+    --fg-muted: rgba(255, 255, 255, 0.4);
+    --bg: #0c0c0c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Satoshi', 'Satoshi Variable', -apple-system, sans-serif;
+    font-weight: 500;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stage {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .card {
+    width: 443px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Total row ── */
+  .row-total {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    border: 0.5px solid var(--border-base);
+    border-top-width: 0.5px;
+    overflow: hidden;
+  }
+  /* gradients live in their own layers and cross-fade — stacking them muddies the hue */
+  .row-total::before,
+  .row-total::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+  }
+  .row-total::before {
+    background: linear-gradient(90deg, rgba(18, 18, 18, 0.1) 0%, rgba(250, 66, 68, 0.1) 100%);
+    opacity: 1;
+  }
+  .row-total::after {
+    background: linear-gradient(90deg, rgba(18, 18, 18, 0.1) 0%, rgba(42, 192, 115, 0.1) 100%);
+    opacity: 0;
+  }
+  .row-total.balanced::before { opacity: 0; }
+  .row-total.balanced::after { opacity: 1; }
+  .row-total .label,
+  .row-total .value { position: relative; z-index: 1; }
+  .row-total .label {
+    font-size: 16px;
+    letter-spacing: -0.16px;
+    color: var(--fg-muted);
+  }
+  .row-total .value {
+    font-size: 16px;
+    letter-spacing: -0.16px;
+    color: var(--highlight-red);
+    transition: color 0.5s ease;
+    font-variant-numeric: tabular-nums;
+  }
+  .row-total.balanced .value {
+    color: #2ac073;
+  }
+
+  /* ── Over-by row ── */
+  .row-over {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: rgba(250, 66, 68, 0.1);
+    border: 0.5px solid var(--border-danger);
+    overflow: hidden;
+    transition:
+      height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      padding 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.3s ease,
+      border-color 0.3s ease;
+  }
+  .row-over.hidden {
+    height: 0 !important;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    border-color: transparent;
+  }
+  .row-over .left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    letter-spacing: -0.14px;
+  }
+  .row-over .left .muted { color: var(--fg-muted); }
+  .row-over .left .pct { color: var(--highlight-red); }
+
+  /* ── Auto-balance button ── */
+  .btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(250, 250, 250, 0);
+    color: var(--fg-base);
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: -0.32px;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    user-select: none;
+  }
+  .btn:hover { background: rgba(250, 250, 250, 0.06); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { cursor: default; opacity: 0.7; }
+
+  .btn .icon {
+    width: 16px;
+    height: 16px;
+    display: block;
+  }
+  .btn.spinning .icon {
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Ticker stack ── */
+  .tickers {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 74px;
+    padding-top: 46px; /* aligns with over-by row */
+  }
+
+  .ticker {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+  .ticker.more { justify-content: center; }
+
+  .ticker .ident {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ticker .logo {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .ticker .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .ticker .sym {
+    font-size: 12px;
+    letter-spacing: -0.24px;
+    line-height: 1.5;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .ticker .arrow {
+    width: 16px;
+    height: 16px;
+    display: block;
+  }
+
+  /* pop in: spring overshoot, no blur */
+  .ticker.in {
+    animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  @keyframes popIn {
+    0%   { opacity: 0; transform: translateY(10px) scale(0.7); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* ease out */
+  .ticker.out {
+    animation: easeOut 0.35s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  @keyframes easeOut {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-8px) scale(0.92); }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card">
+    <div class="row-total" id="totalRow">
+      <span class="label">Total</span>
+      <number-flow class="value" id="totalValue"></number-flow>
+    </div>
+    <div class="row-over" id="overRow">
+      <div class="left">
+        <span class="muted">Over by</span>
+        <span class="pct">7.90%</span>
+      </div>
+      <button class="btn" id="autoBalance">
+        <img class="icon" src="https://www.figma.com/api/mcp/asset/dc73892f-4b6b-4eab-9c75-4b2eee89f461.svg" alt="" />
+        Auto-balance
+      </button>
+    </div>
+  </div>
+
+  <div class="tickers" id="tickers">
+    <div class="ticker">
+      <div class="ident">
+        <div class="logo"><img src="https://www.figma.com/api/mcp/asset/3824e3e8-08ad-4c0b-adf2-e473db14f7f1.png" alt="TSLA" /></div>
+        <span class="sym">TSLA</span>
+      </div>
+      <img class="arrow" src="https://www.figma.com/api/mcp/asset/96754054-02db-4769-826d-7dbffa9e5b40.svg" alt="up" />
+    </div>
+    <div class="ticker">
+      <div class="ident">
+        <div class="logo"><img src="https://www.figma.com/api/mcp/asset/0fd6eed8-c4f5-45af-a48a-f3eccad5ceb9.png" alt="META" /></div>
+        <span class="sym">META</span>
+      </div>
+      <img class="arrow" src="https://www.figma.com/api/mcp/asset/05cf1c62-2c60-47e4-a976-b816fd192538.svg" alt="down" />
+    </div>
+    <div class="ticker">
+      <div class="ident">
+        <div class="logo"><img src="https://www.figma.com/api/mcp/asset/b7daf6ce-5dbd-49bf-9024-f2d733be78ad.png" alt="AMZN" /></div>
+        <span class="sym">AMZN</span>
+      </div>
+      <img class="arrow" src="https://www.figma.com/api/mcp/asset/96754054-02db-4769-826d-7dbffa9e5b40.svg" alt="up" />
+    </div>
+    <div class="ticker more">
+      <span class="sym">+3 more</span>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import 'https://esm.sh/number-flow@0.6.2';
+
+  const btn = document.getElementById('autoBalance');
+  const totalRow = document.getElementById('totalRow');
+  const nf = document.getElementById('totalValue');
+  const tickers = [...document.querySelectorAll('.ticker')];
+
+  const IN_STAGGER = 130;   // ms between each pop-in
+  const HOLD = 1000;        // ms all visible before exit
+  const OUT_STAGGER = 90;   // ms between each ease-out
+  const IN_DUR = 450;
+  const OUT_DUR = 350;
+
+  const FROM = 107.90;
+  const TO = 100.00;
+
+  // NumberFlow config — format handles the two decimals, suffix the %
+  nf.format = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  nf.numberSuffix = '%';
+
+  // set initial value without animating
+  nf.animated = false;
+  nf.update(FROM);
+  requestAnimationFrame(() => { nf.animated = true; });
+
+  function runTickers() {
+    return new Promise(resolve => {
+      tickers.forEach(t => t.classList.remove('in', 'out'));
+      void document.body.offsetHeight; // reflow
+
+      // pop in one by one
+      tickers.forEach((t, i) => {
+        setTimeout(() => t.classList.add('in'), i * IN_STAGGER);
+      });
+
+      const lastInDone = (tickers.length - 1) * IN_STAGGER + IN_DUR;
+
+      // ease out one by one
+      setTimeout(() => {
+        tickers.forEach((t, i) => {
+          setTimeout(() => {
+            t.classList.remove('in');
+            t.classList.add('out');
+          }, i * OUT_STAGGER);
+        });
+
+        const lastOutDone = (tickers.length - 1) * OUT_STAGGER + OUT_DUR;
+        setTimeout(() => {
+          tickers.forEach(t => t.classList.remove('out'));
+          resolve();
+        }, lastOutDone + 50);
+      }, lastInDone + HOLD);
+    });
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const overRow = document.getElementById('overRow');
+
+  const SPIN_DUR = 900; // NumberFlow's default spring — row collapses as digits land on 100
+
+  function collapseRow() {
+    // pin the auto height so it can transition to 0
+    overRow.style.height = overRow.scrollHeight + 'px';
+    void overRow.offsetHeight; // reflow
+    overRow.classList.add('hidden');
+    return sleep(420);
+  }
+
+  function expandRow() {
+    overRow.classList.remove('hidden'); // transitions back to the pinned height
+    return sleep(420).then(() => { overRow.style.height = ''; });
+  }
+
+  let running = false;
+
+  btn.addEventListener('click', async () => {
+    if (running) return;
+    running = true;
+    btn.disabled = true;
+    btn.classList.add('spinning');
+
+    // total spins down to 100.00% + goes green, tickers fire simultaneously
+    totalRow.classList.add('balanced');
+    nf.update(TO);
+    const tickersDone = runTickers();
+
+    // the second the total lands on 100%, the auto-balance line disappears
+    await sleep(SPIN_DUR);
+    btn.classList.remove('spinning');
+    await collapseRow();
+
+    // let the ticker sequence play out
+    await tickersDone;
+
+    // hold the clean balanced state, then restore everything for replay
+    await sleep(1600);
+    totalRow.classList.remove('balanced');
+    nf.update(FROM);
+    await expandRow();
+
+    btn.disabled = false;
+    running = false;
+  });
+</script>
+
+</body>
+</html>
