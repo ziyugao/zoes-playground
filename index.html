@@ -1047,10 +1047,14 @@
 
     // saved arrangement wins; anything new (never dragged) keeps its default slot at the end
     const order = loadOrder();
+    // Versor leads the grid until the owner drags it somewhere else
+    const rank = (e) => { const i = order.indexOf(e.key); return i === -1 && e.title === "Versor" ? -2 : i; };
     entries.sort((a, b) => {
-      const ia = order.indexOf(a.key);
-      const ib = order.indexOf(b.key);
+      const ia = rank(a);
+      const ib = rank(b);
       if (ia === ib) return 0;
+      if (ia === -2) return -1;
+      if (ib === -2) return 1;
       if (ia === -1) return 1;
       if (ib === -1) return -1;
       return ia - ib;
