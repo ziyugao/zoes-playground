@@ -483,7 +483,7 @@
     if (st.rhythm === 2){ const f = ph - Math.floor(ph); return (1 - d) + d * Math.exp(-6 * f) / TICK_MEAN; }
     return 1;
   }
-  const HOLD = 2.6;
+  const HOLD = 0.8;
   // speed profile after the hold: a fast kick that overshoots, then settles to cruising speed
   const profile = u => u <= 0 ? 0 : (1 - Math.exp(-u * 2.2)) + 1.7 * (u / 0.7) * Math.exp(1 - u / 0.7);
   let kicked = false;
