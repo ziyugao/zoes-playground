@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Versor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ececea; --fg:#161616; --dim:rgba(22,22,22,.56); --faint:rgba(22,22,22,.18); --glass:rgba(236,236,234,.8);
+    color-scheme:light;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#121212; --fg:#e8e8e6; --dim:rgba(232,232,230,.52); --faint:rgba(232,232,230,.18); --glass:rgba(18,18,18,.78); color-scheme:dark; }
+  }
+  :root[data-theme="dark"]{ --bg:#121212; --fg:#e8e8e6; --dim:rgba(232,232,230,.52); --faint:rgba(232,232,230,.18); --glass:rgba(18,18,18,.78); color-scheme:dark; }
+  *,*::before,*::after{box-sizing:inherit}
+  html{height:100%; scroll-padding-top:env(safe-area-inset-top,0px)}
+  body{
+    margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
+    font-family:"Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    font-optical-sizing:auto; -webkit-font-smoothing:antialiased;
+  }
+  canvas{position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab}
+  canvas:active{cursor:grabbing}
+
+  .ui{
+    position:fixed; inset:0; pointer-events:none;
+    display:flex; flex-direction:column; justify-content:space-between;
+    padding:
+      calc(env(safe-area-inset-top,0px) + clamp(20px,4vw,52px))
+      clamp(20px,4vw,52px)
+      calc(env(safe-area-inset-bottom,0px) + clamp(20px,4vw,48px));
+  }
+  h1{margin:0; font-weight:300; font-size:clamp(44px,6.4vw,84px); line-height:.95; letter-spacing:-.015em}
+  .sub{margin:.9em 0 0; max-width:30ch; font-size:16px; line-height:1.5; color:var(--dim); font-weight:300}
+  .foot{display:flex; justify-content:space-between; align-items:flex-end; gap:24px}
+  .eq{font-size:clamp(20px,2.1vw,26px); font-weight:300; margin:0 0 .55em; letter-spacing:.005em}
+  .ro{font-size:15px; line-height:1.6; color:var(--fg); font-variant-numeric:tabular-nums; font-weight:300; white-space:nowrap}
+  .ro + .ro{color:var(--dim)}
+  .note{margin:1.1em 0 0; max-width:46ch; font-size:14.5px; line-height:1.6; color:var(--dim); font-weight:300}
+  i{font-style:italic}
+  .ctl{display:flex; flex-direction:column; align-items:flex-end; gap:10px; text-align:right}
+  .hint{font-size:14px; color:var(--dim); font-style:italic; font-weight:300}
+  button{
+    pointer-events:auto; font:inherit; font-size:14px; color:var(--fg); background:transparent;
+    border:1px solid var(--faint); border-radius:999px; padding:6px 16px; cursor:pointer;
+  }
+  button:hover{border-color:var(--dim)}
+  button:focus-visible{outline:1px solid var(--fg); outline-offset:3px}
+  /* adjust panel */
+  .adj{position:fixed; z-index:3; top:calc(env(safe-area-inset-top,0px) + clamp(20px,4vw,52px)); right:clamp(20px,4vw,52px)}
+  .panel{
+    position:fixed; z-index:2; right:clamp(20px,4vw,52px);
+    top:calc(env(safe-area-inset-top,0px) + clamp(20px,4vw,52px) + 44px);
+    width:252px; max-height:calc(100% - 260px); overflow:auto;
+    padding:18px 18px 14px; border:1px solid var(--faint); border-radius:14px;
+    background:var(--glass); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    display:none; font-weight:300;
+  }
+  .panel.open{display:block}
+  .grp + .grp{margin-top:18px; padding-top:16px; border-top:1px solid var(--faint)}
+  .gt{font-size:15px; margin:0 0 12px; font-style:italic; color:var(--fg)}
+  .seg{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 14px; padding:0; border:0}
+  .seg legend{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
+  .seg label{position:relative}
+  .seg input{position:absolute; opacity:0; inset:0; margin:0; cursor:pointer}
+  .seg span{display:block; text-align:center; font-size:13.5px; padding:5px 0; border:1px solid var(--faint); border-radius:999px; color:var(--dim)}
+  .seg input:checked + span{color:var(--bg); background:var(--fg); border-color:var(--fg)}
+  .seg input:focus-visible + span{outline:1px solid var(--fg); outline-offset:2px}
+  .sl{display:block; margin:0 0 12px}
+  .sl .lab{display:flex; justify-content:space-between; font-size:13.5px; color:var(--dim); margin-bottom:4px}
+  .sl output{color:var(--fg); font-variant-numeric:tabular-nums}
+  input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:18px; background:transparent; margin:0; cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:1px; background:var(--faint)}
+  input[type=range]::-moz-range-track{height:1px; background:var(--faint)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:13px; height:13px; border-radius:50%; background:var(--fg); margin-top:-6px; border:0}
+  input[type=range]::-moz-range-thumb{width:13px; height:13px; border-radius:50%; background:var(--fg); border:0}
+  input[type=range]:focus-visible{outline:1px solid var(--fg); outline-offset:4px}
+  .chk{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--dim); cursor:pointer}
+  .chk input{accent-color:var(--fg); margin:0}
+  .pf{display:flex; justify-content:flex-end; margin-top:14px}
+  .fallback{position:fixed; inset:0; display:none; place-items:center; color:var(--dim); font-style:italic}
+
+  @media (max-width:640px){
+    .foot{flex-direction:column; align-items:flex-start}
+    .ctl{align-items:flex-start; text-align:left; flex-direction:row; align-items:center}
+    .note{display:none}
+    .ro{font-size:13.5px}
+    .panel{max-height:calc(100% - 300px)}
+  }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Four nested rings turning inside a wire sphere, each driven by a unit quaternion"></canvas>
+<div class="fallback" id="fb">This piece needs WebGL to draw.</div>
+
+<div class="ui">
+  <header>
+    <h1>Versor</h1>
+    <p class="sub">From the Latin <i>versari</i>, to turn. A quaternion of norm one: Hamilton’s name for a pure rotation.</p>
+  </header>
+
+  <div class="foot">
+    <div>
+      <p class="eq"><i>q</i> = cos <i>a</i> + <i>r</i> sin <i>a</i>, &nbsp;<i>r</i>² = −1</p>
+      <div class="ro" id="ro1">&nbsp;</div>
+      <div class="ro" id="ro2">&nbsp;</div>
+      <p class="note">Each ring turns by its own versor; the innermost carries their product, which is still a versor. Hamilton drew it as an arc of length <i>a</i> on the great circle at right angles to <i>r</i>. The rotation it performs, <i>v</i> ↦ <i>qvq</i>⁻¹, is twice that arc.</p>
+    </div>
+    <div class="ctl">
+      <span class="hint">Drag to turn the sphere</span>
+      <div style="display:flex;gap:8px"><button id="rp" type="button">Replay</button><button id="pp" type="button" aria-pressed="false">Pause</button></div>
+    </div>
+  </div>
+</div>
+
+<button class="adj" id="adj" type="button" aria-expanded="true" aria-controls="panel">Adjust</button>
+<aside class="panel" id="panel" aria-label="Rendering controls">
+  <div class="grp">
+    <p class="gt">Background</p>
+    <fieldset class="seg">
+      <legend>Background</legend>
+      <label><input type="radio" name="theme" value="light" checked><span>Light</span></label>
+      <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+    </fieldset>
+  </div>
+  <div class="grp">
+    <p class="gt">Shading</p>
+    <fieldset class="seg">
+      <legend>Shading method</legend>
+      <label><input type="radio" name="mode" value="0"><span>Grain</span></label>
+      <label><input type="radio" name="mode" value="1"><span>Stipple</span></label>
+      <label><input type="radio" name="mode" value="2" checked><span>Dither</span></label>
+      <label><input type="radio" name="mode" value="3"><span>Halftone</span></label>
+    </fieldset>
+    <label class="sl"><span class="lab">Density <output data-for="density"></output></span><input type="range" id="density" min="0.3" max="2" step="0.01"></label>
+    <label class="sl"><span class="lab">Grain size <output data-for="grain"></output></span><input type="range" id="grain" min="1" max="4" step="0.25"></label>
+    <label class="sl"><span class="lab">Contrast <output data-for="contrast"></output></span><input type="range" id="contrast" min="0.6" max="3" step="0.01"></label>
+    <label class="sl"><span class="lab">Clumping <output data-for="clump"></output></span><input type="range" id="clump" min="0" max="1" step="0.01"></label>
+    <label class="sl"><span class="lab">Light angle <output data-for="light"></output></span><input type="range" id="light" min="0" max="360" step="1"></label>
+    <label class="sl"><span class="lab">Rim light <output data-for="rim"></output></span><input type="range" id="rim" min="0" max="1" step="0.01"></label>
+  </div>
+  <div class="grp">
+    <p class="gt">Motion</p>
+    <label class="sl"><span class="lab">Speed <output data-for="speed"></output></span><input type="range" id="speed" min="0" max="3" step="0.05"></label>
+  </div>
+  <div class="grp">
+    <p class="gt">Outlines</p>
+    <label class="sl"><span class="lab">Count <output data-for="lines"></output></span><input type="range" id="lines" min="0" max="12" step="1"></label>
+    <span class="lab" style="display:block;font-size:13.5px;color:var(--dim);margin-bottom:6px">Orbit</span>
+    <fieldset class="seg" style="grid-template-columns:repeat(4,1fr)">
+      <legend>Orbit to edit</legend>
+      <label><input type="radio" name="orbit" value="0" checked><span>Outer</span></label>
+      <label><input type="radio" name="orbit" value="1"><span>2nd</span></label>
+      <label><input type="radio" name="orbit" value="2"><span>3rd</span></label>
+      <label><input type="radio" name="orbit" value="3"><span>Inner</span></label>
+    </fieldset>
+    <label class="sl"><span class="lab">Balls on this orbit <output data-for="balls"></output></span><input type="range" id="balls" min="0" max="8" step="1"></label>
+    <label class="sl"><span class="lab">Strength <output data-for="lineop"></output></span><input type="range" id="lineop" min="0.2" max="2.5" step="0.01"></label>
+    <label class="chk" style="margin-bottom:8px"><input type="checkbox" id="ringlines" checked> Outer orbit lines</label>
+    <label class="chk"><input type="checkbox" id="guides"> Versor arc and axis</label>
+    <div class="pf" style="gap:8px"><button id="copy" type="button">Copy setup</button><button id="reset" type="button">Reset</button></div>
+    <textarea id="setupOut" readonly aria-label="Current setup" style="display:none;width:100%;margin-top:10px;height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;background:transparent;color:var(--fg);border:1px solid var(--faint);border-radius:8px;padding:8px;resize:none"></textarea>
+  </div>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  if (!window.THREE) { document.getElementById('fb').style.display='grid'; return; }
+  const canvas = document.getElementById('c');
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({canvas, antialias:true}); }
+  catch(e){ document.getElementById('fb').style.display='grid'; return; }
+
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(DPR);
+  renderer.setClearColor(0x121212, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- stipple shader: lit value becomes dot density ---------- */
+  const VS = `
+    varying vec3 vN; varying vec3 vV; varying vec3 vP;
+    void main(){
+      vec4 mv = modelViewMatrix * vec4(position,1.0);
+      vN = normalize(normalMatrix * normal);
+      vV = -mv.xyz;
+      vP = position;
+      gl_Position = projectionMatrix * mv;
+    }`;
+  const FS = `
+    precision highp float;
+    uniform vec3 uLight; uniform vec3 uBg; uniform vec3 uFg;
+    uniform float uGrain, uGain, uDensity, uContrast, uClump, uRim, uMode, uInk;
+    varying vec3 vN; varying vec3 vV; varying vec3 vP;
+    float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+    float hash13(vec3 p3){ p3 = fract(p3 * .1031); p3 += dot(p3, p3.zyx + 31.32); return fract((p3.x + p3.y) * p3.z); }
+    float vnoise(vec3 p){
+      vec3 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+      return mix(mix(mix(hash13(i), hash13(i+vec3(1,0,0)), f.x), mix(hash13(i+vec3(0,1,0)), hash13(i+vec3(1,1,0)), f.x), f.y),
+                 mix(mix(hash13(i+vec3(0,0,1)), hash13(i+vec3(1,0,1)), f.x), mix(hash13(i+vec3(0,1,1)), hash13(i+vec3(1,1,1)), f.x), f.y), f.z);
+    }
+    float bayer2(vec2 a){ a = floor(a); return fract(dot(a, vec2(.5, a.y * .75))); }
+    float bayer4(vec2 a){ return bayer2(.5 * a) * .25 + bayer2(a); }
+    float bayer8(vec2 a){ return bayer4(.5 * a) * .25 + bayer2(a); }
+    void main(){
+      vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
+      vec3 v = normalize(vV);
+      float nd = dot(n, uLight);
+      float d = max(nd, 0.0);
+      float wrap = clamp((nd + 0.3) / 1.3, 0.0, 1.0);
+      float rim = pow(1.0 - max(dot(n, v), 0.0), 2.5);
+      float lit = clamp(mix(d, wrap * wrap, 0.4) * uGain, 0.0, 1.0);
+      float l = uInk > 0.5
+        ? 0.05 + (1.0 - lit) * 0.9 * uDensity + rim * uRim
+        : 0.03 + lit * 0.92 * uDensity + rim * uRim;
+      float c = vnoise(vP * 6.0) * 0.6 + vnoise(vP * 21.0) * 0.4;
+      l *= mix(1.0, 0.5 + c, uClump);
+      l = pow(clamp(l, 0.0, 1.0), uContrast);
+      vec2 px = gl_FragCoord.xy / uGrain;
+      float s;
+      if (uMode < 0.5) {
+        float th = mix(hash12(floor(px)), hash12(floor(px * 0.5) + 17.0), 0.3);
+        s = smoothstep(th - 0.14, th + 0.14, l);
+        s *= 0.62 + 0.38 * hash12(floor(px) + 91.0);
+      } else if (uMode < 1.5) {
+        s = step(hash12(floor(px)), l);
+      } else if (uMode < 2.5) {
+        s = step(bayer8(px), l);
+      } else {
+        vec2 q = mat2(.7071, -.7071, .7071, .7071) * px / 4.0;
+        float dist = length(fract(q) - 0.5);
+        float rad = sqrt(l) * 0.62;
+        s = 1.0 - smoothstep(rad - 0.07, rad + 0.07, dist);
+      }
+      gl_FragColor = vec4(mix(uBg, uFg, s * 0.94), 1.0);
+    }`;
+  const U = {
+    uLight:{value:new THREE.Vector3(-0.6, 0.72, 0.38).normalize()},
+    uGrain:{value:DPR},
+    uBg:{value:new THREE.Color(0x121212)},
+    uFg:{value:new THREE.Color(0xeaeae8)},
+    uGain:{value:1.0}, uDensity:{value:1}, uContrast:{value:1.45},
+    uClump:{value:0.5}, uRim:{value:0.28}, uMode:{value:0}, uInk:{value:1}
+  };
+  const stipple = new THREE.ShaderMaterial({uniforms:U, vertexShader:VS, fragmentShader:FS, side:THREE.DoubleSide});
+  const stippleBall = new THREE.ShaderMaterial({uniforms:Object.assign({}, U, {uGain:{value:1.2}}), vertexShader:VS, fragmentShader:FS});
+
+  /* ---------- helpers ---------- */
+  const lineMats = [];
+  const lineMat = op => { const m = new THREE.LineBasicMaterial({color:0x161616, transparent:true, opacity:op, depthWrite:false}); lineMats.push(m); return m; };
+  function circleGeo(n){
+    const pts=[]; for(let i=0;i<=n;i++){const t=i/n*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(t),Math.sin(t),0));}
+    return new THREE.BufferGeometry().setFromPoints(pts);
+  }
+  function band(R, w, h){
+    const g = new THREE.Group(), segs = 180;
+    const outer = new THREE.CylinderGeometry(R, R, h, segs, 1, true);
+    const inner = new THREE.CylinderGeometry(R-w, R-w, h, segs, 1, true);
+    const top = new THREE.RingGeometry(R-w, R, segs, 1); top.rotateX(-Math.PI/2); top.translate(0, h/2, 0);
+    const bot = new THREE.RingGeometry(R-w, R, segs, 1); bot.rotateX( Math.PI/2); bot.translate(0,-h/2, 0);
+    [outer, inner, top, bot].forEach(geo => g.add(new THREE.Mesh(geo, stipple)));
+    return g;
+  }
+  function dynLine(n, op){
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((n+1)*3), 3));
+    const l = new THREE.Line(geo, lineMat(op)); l.frustumCulled = false; return l;
+  }
+
+  /* ---------- world (draggable) ---------- */
+  const Rs = 2.35;
+  const world = new THREE.Group();
+  world.quaternion.setFromAxisAngle(new THREE.Vector3(1,0,0), Math.PI/2);
+  scene.add(world);
+
+  // camera-facing outline of the sphere
+  const sil = new THREE.Line(circleGeo(256), lineMat(0.62));
+  scene.add(sil);
+
+  // fixed meridians and parallels of the wire sphere
+  const deco = [
+    {rx:Math.PI/2,   ry:0,    s:1, y:0,  op:.22},
+    {rx:Math.PI/2.6, ry:0.9,  s:1, y:0,  op:.2},
+    {rx:0.35,        ry:-0.6, s:1, y:0,  op:.16},
+    {rx:Math.PI/2,   ry:0,    p:0.62,    op:.18},
+    {rx:Math.PI/2,   ry:0,    p:-0.5,    op:.16},
+    {rx:1.1,         ry:2.1,  s:1, y:0,  op:.17},
+    {rx:Math.PI/2,   ry:0,    p:0.25,    op:.14},
+    {rx:0.8,         ry:-1.9, s:1, y:0,  op:.15},
+    {rx:Math.PI/2,   ry:0,    p:-0.82,   op:.14},
+    {rx:1.45,        ry:1.4,  s:1, y:0,  op:.14},
+    {rx:Math.PI/2,   ry:0,    p:0.85,    op:.13},
+    {rx:0.15,        ry:0.4,  s:1, y:0,  op:.13}
+  ];
+  const decoLines = deco.map(d => {
+    const holder = new THREE.Group();
+    const c = new THREE.Line(circleGeo(200), lineMat(d.op));
+    const sc = d.p !== undefined ? Math.sqrt(1 - d.p*d.p) : d.s;
+    c.scale.setScalar(Rs * sc); c.rotation.x = d.rx; c.position.y = d.p !== undefined ? Rs * d.p : d.y;
+    holder.add(c); holder.rotation.y = d.ry; world.add(holder);
+    return {holder, mat:c.material, base:d.op};
+  });
+
+  // nested rings, each a child of the last: orientations compose as q1 q2 q3 q4
+  const specs = [
+    {R:1.78, w:0.46, h:0.11, axis:[1,0,.25],  w0:0.21, p:0},
+    {R:1.22, w:0.17, h:0.34, axis:[0,0,1],    w0:-0.33, p:0},
+    {R:0.80, w:0.10, h:0.42, axis:[1,0,0],    w0:0.47, p:0},
+    {R:0.46, w:0.13, h:0.20, axis:[.3,0,1],   w0:-0.71, p:0}
+  ];
+  const gimbals = []; let parent = world;
+  specs.forEach(s => {
+    const g = new THREE.Group();
+    s.ax = new THREE.Vector3(...s.axis).normalize();
+    g.add(band(s.R, s.w, s.h));
+    parent.add(g); gimbals.push(g); parent = g;
+  });
+
+  // the versor's arc: great circle perpendicular to r, arc of length a, axis r
+  const N_ARC = 96, N_GC = 192;
+  const gc = dynLine(N_GC, 0.26);
+  const arc = dynLine(N_ARC, 0.95);
+  const axisL = dynLine(1, 0.38);
+  world.add(gc, arc, axisL);
+  // the two small spheres ride along the outer band, in its plane
+  // balls ride each ring's outer orbit line; a pool per orbit, shown up to the chosen count
+  const MAX_BALLS = 8;
+  const ballSize = [0.16, 0.125, 0.1, 0.085];
+  const ballDir = [1, -1, 1, -1];
+  const balls = gimbals.map((g, i) => {
+    const geo = new THREE.SphereGeometry(ballSize[i], 40, 28);
+    return Array.from({length:MAX_BALLS}, () => { const m = new THREE.Mesh(geo, stippleBall); g.add(m); return m; });
+  });
+  const orbitR = Rs;   // balls ride the outer band's ring outline on the globe
+
+  // ring outlines: a great circle on the globe in each ring's plane, turning with that ring
+  const ringOutlines = gimbals.map(g => {
+    const c = new THREE.Line(circleGeo(256), lineMat(0.34));
+    c.rotation.x = Math.PI / 2; c.scale.setScalar(Rs);
+    g.add(c); return c;
+  });
+
+  /* ---------- sizing ---------- */
+  function resize(){
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    const need = 2.8 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    let d = need * Math.max(1, 1 / camera.aspect);
+    if (w < 640) d *= 1.1;
+    camera.position.set(0, 0, d);
+    camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+    sil.position.z = Rs * Rs / d;
+    sil.scale.setScalar(Rs * Math.sqrt(1 - (Rs * Rs) / (d * d)));
+  }
+  addEventListener('resize', resize); resize();
+
+  /* ---------- drag to turn ---------- */
+  let drag = null; const vel = {x:0, y:0}; const tq = new THREE.Quaternion(), tv = new THREE.Vector3();
+  function turn(dx, dy){
+    tv.set(dy, dx, 0); const len = tv.length(); if (len < 1e-5) return;
+    tq.setFromAxisAngle(tv.normalize(), len * 0.0065);
+    world.quaternion.premultiply(tq);
+  }
+  canvas.addEventListener('pointerdown', e => { drag = {x:e.clientX, y:e.clientY}; vel.x = vel.y = 0; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    turn(dx, dy); vel.x = dx; vel.y = dy; drag = {x:e.clientX, y:e.clientY};
+  });
+  const end = () => { drag = null; };
+  canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+
+  /* ---------- play / pause ---------- */
+  let running = true;
+  const pp = document.getElementById('pp');
+  function toggle(){ running = !running; pp.textContent = running ? 'Pause' : 'Play'; pp.setAttribute('aria-pressed', String(!running)); }
+  pp.addEventListener('click', toggle);
+  addEventListener('keydown', e => { if (e.code === 'Space' && e.target === document.body){ e.preventDefault(); toggle(); } });
+
+  /* ---------- controls ---------- */
+  const DEF = {theme:'light', speed:1, orbit:0, ballCounts:[2,0,0,0], rhythm:0, accent:0, stagger:0, tempo:36, mode:2, density:0.96, grain:1, contrast:0.9, clump:0.5, light:132, rim:0.28, lines:0, lineop:0.95, ringlines:true, guides:false};
+  const st = Object.assign({}, DEF, {ballCounts:DEF.ballCounts.slice()});
+  const fmtv = {speed:v=>v.toFixed(2)+'×', density:v=>v.toFixed(2), grain:v=>v.toFixed(2)+' px', contrast:v=>v.toFixed(2), clump:v=>Math.round(v*100)+'%',
+                light:v=>Math.round(v)+'°', rim:v=>v.toFixed(2), lines:v=>String(v), lineop:v=>v.toFixed(2)+'×'};
+  const THEMES = {
+    light:{bg:0xececea, ink:0x161616, inkMode:1, lineGain:1.25},
+    dark: {bg:0x121212, ink:0xeaeae8, inkMode:0, lineGain:1}
+  };
+  function apply(){
+    const T = THEMES[st.theme];
+    document.documentElement.dataset.theme = st.theme;
+    renderer.setClearColor(T.bg, 1);
+    U.uBg.value.setHex(T.bg); U.uFg.value.setHex(T.ink); U.uInk.value = T.inkMode;
+    lineMats.forEach(m => m.color.setHex(T.ink));
+    const lg = st.lineop * T.lineGain;
+    U.uMode.value = st.mode; U.uDensity.value = st.density; U.uGrain.value = DPR * st.grain;
+    U.uContrast.value = st.contrast; U.uClump.value = st.clump; U.uRim.value = st.rim;
+    const th = st.light * Math.PI / 180;
+    U.uLight.value.set(Math.cos(th) * 0.78, Math.sin(th) * 0.78, 0.42).normalize();
+    decoLines.forEach((d, i) => { d.holder.visible = i < st.lines; d.mat.opacity = Math.min(1, d.base * lg); });
+    sil.material.opacity = Math.min(1, 0.62 * lg);
+    ringOutlines.forEach(c => { c.material.opacity = Math.min(1, 0.34 * lg); c.visible = st.ringlines; });
+    gc.material.opacity = Math.min(1, 0.26 * lg);
+    axisL.material.opacity = Math.min(1, 0.38 * lg);
+    gc.visible = arc.visible = axisL.visible = st.guides;
+  }
+  function sync(){
+    Object.keys(fmtv).forEach(k => {
+      document.getElementById(k).value = st[k];
+      document.querySelector(`output[data-for="${k}"]`).textContent = fmtv[k](st[k]);
+    });
+    document.querySelectorAll('input[name=mode]').forEach(r => r.checked = Number(r.value) === st.mode);
+    document.querySelectorAll('input[name=theme]').forEach(r => r.checked = r.value === st.theme);
+    document.querySelectorAll('input[name=orbit]').forEach(r => r.checked = Number(r.value) === st.orbit);
+    syncBalls();
+    document.getElementById('guides').checked = st.guides;
+    document.getElementById('ringlines').checked = st.ringlines;
+    apply();
+  }
+  Object.keys(fmtv).forEach(k => document.getElementById(k).addEventListener('input', e => {
+    st[k] = Number(e.target.value);
+    document.querySelector(`output[data-for="${k}"]`).textContent = fmtv[k](st[k]); apply();
+  }));
+  document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', () => { st.mode = Number(r.value); apply(); }));
+  document.querySelectorAll('input[name=theme]').forEach(r => r.addEventListener('change', () => { st.theme = r.value; apply(); }));
+  const ballsIn = document.getElementById('balls'), ballsOut = document.querySelector('output[data-for="balls"]');
+  function syncBalls(){ ballsIn.value = st.ballCounts[st.orbit]; ballsOut.textContent = String(st.ballCounts[st.orbit]); }
+  ballsIn.addEventListener('input', e => { st.ballCounts[st.orbit] = Number(e.target.value); ballsOut.textContent = e.target.value; });
+  document.querySelectorAll('input[name=orbit]').forEach(r => r.addEventListener('change', () => { st.orbit = Number(r.value); syncBalls(); }));
+  document.getElementById('ringlines').addEventListener('change', e => { st.ringlines = e.target.checked; apply(); });
+  document.getElementById('guides').addEventListener('change', e => { st.guides = e.target.checked; apply(); });
+  document.getElementById('copy').addEventListener('click', async e => {
+    const keep = Object.assign({}, st); delete keep.orbit; delete keep.rhythm; delete keep.accent; delete keep.stagger; delete keep.tempo;
+    const txt = JSON.stringify(keep);
+    const out = document.getElementById('setupOut');
+    out.value = txt; out.style.display = 'block'; out.select();
+    let ok = false;
+    try { await navigator.clipboard.writeText(txt); ok = true; } catch(_) { try { ok = document.execCommand('copy'); } catch(__) {} }
+    e.target.textContent = ok ? 'Copied' : 'Select and copy';
+    setTimeout(() => { e.target.textContent = 'Copy setup'; }, 1800);
+  });
+  document.getElementById('reset').addEventListener('click', () => { Object.assign(st, DEF, {ballCounts:DEF.ballCounts.slice()}); sync(); });
+  const panel = document.getElementById('panel'), adj = document.getElementById('adj');
+  function setOpen(o){ panel.classList.toggle('open', o); adj.setAttribute('aria-expanded', String(o)); }
+  setOpen(innerWidth > 900);
+  adj.addEventListener('click', () => setOpen(!panel.classList.contains('open')));
+  sync();
+
+  /* ---------- readout ---------- */
+  const ro1 = document.getElementById('ro1'), ro2 = document.getElementById('ro2');
+  const num = v => (v < 0 ? '−' : '') + Math.abs(v).toFixed(3);
+  const term = (v, u) => ` ${v < 0 ? '−' : '+'} ${Math.abs(v).toFixed(3)}<i>${u}</i>`;
+  function readout(q, a){
+    const deg = a * 180 / Math.PI;
+    ro1.innerHTML = `<i>q</i> = ${num(q.w)}${term(q.x,'i')}${term(q.y,'j')}${term(q.z,'k')}`;
+    ro2.innerHTML = `<i>a</i> = ${deg.toFixed(1)}° &nbsp;&nbsp; rotation 2<i>a</i> = ${(2*deg).toFixed(1)}° &nbsp;&nbsp; |<i>q</i>| = ${Math.hypot(q.w,q.x,q.y,q.z).toFixed(3)}`;
+  }
+
+  /* ---------- loop ---------- */
+  const q = new THREE.Quaternion();
+  const r = new THREE.Vector3(), u = new THREE.Vector3(), v = new THREE.Vector3();
+  const A = new THREE.Vector3(0.62, 0.34, 0.71).normalize();
+  const speed = reduce ? 0.3 : 1;
+  let t = 0, clock = 0, beat = 0, last = performance.now(), frame = 0;
+  const ti = [0, 0, 0, 0];               // each ring keeps its own clock so rhythm can be staggered
+  const TICK_MEAN = (1 - Math.exp(-6)) / 6;
+  // rhythm multiplier for one ring at beat phase ph; every style averages to 1 so cruising speed is unchanged
+  function rhythm(ph){
+    const d = st.accent;
+    if (st.rhythm === 1) return 1 + d * 0.92 * Math.sin(ph * Math.PI * 2);
+    if (st.rhythm === 2){ const f = ph - Math.floor(ph); return (1 - d) + d * Math.exp(-6 * f) / TICK_MEAN; }
+    return 1;
+  }
+  const HOLD = 2.6;
+  // speed profile after the hold: a fast kick that overshoots, then settles to cruising speed
+  const profile = u => u <= 0 ? 0 : (1 - Math.exp(-u * 2.2)) + 1.7 * (u / 0.7) * Math.exp(1 - u / 0.7);
+  let kicked = false;
+
+  function setLine(line, fn, n){
+    const p = line.geometry.attributes.position.array;
+    for (let i = 0; i <= n; i++){ const P = fn(i / n); p[i*3] = P.x; p[i*3+1] = P.y; p[i*3+2] = P.z; }
+    line.geometry.attributes.position.needsUpdate = true;
+  }
+  const P = new THREE.Vector3();
+
+  const FLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), Math.PI/2);
+  document.getElementById('rp').addEventListener('click', () => {
+    t = 0; clock = 0; beat = 0; ti.fill(0); kicked = false; vel.x = vel.y = 0; world.quaternion.copy(FLAT);
+    if (!running) toggle();
+  });
+  function tick(now){
+    const dt = Math.min((now - last) / 1000, 0.05); last = now;
+    let k = 1;
+    if (running && document.visibilityState === 'visible'){
+      clock += dt; k = profile(clock - HOLD);
+      const base = dt * speed * k * st.speed;
+      if (clock > HOLD) beat += dt * st.tempo / 60;
+      t += base;
+      for (let i = 0; i < ti.length; i++) ti[i] += base * rhythm(beat - i * st.stagger * 0.25);
+      if (!kicked && clock >= HOLD){ kicked = true; if (!reduce){ vel.x = 7 * st.speed; vel.y = -4 * st.speed; } }
+    }
+
+    gimbals.forEach((g, i) => g.quaternion.setFromAxisAngle(specs[i].ax, specs[i].p + specs[i].w0 * ti[i]));
+    q.copy(gimbals[0].quaternion);
+    for (let i = 1; i < gimbals.length; i++) q.multiply(gimbals[i].quaternion);
+
+    const w = THREE.MathUtils.clamp(q.w, -1, 1);
+    const a = Math.acos(w);
+    const s = Math.sqrt(Math.max(1 - w * w, 0));
+    if (s > 1e-5) r.set(q.x / s, q.y / s, q.z / s); else r.set(0, 1, 0);
+
+    // basis of the plane perpendicular to r, anchored to a fixed direction
+    u.copy(A).addScaledVector(r, -A.dot(r));
+    if (u.lengthSq() < 1e-6) u.set(1, 0, 0).addScaledVector(r, -r.x);
+    u.normalize(); v.crossVectors(r, u);
+
+    setLine(gc, k => P.copy(u).multiplyScalar(Math.cos(k*Math.PI*2)).addScaledVector(v, Math.sin(k*Math.PI*2)).multiplyScalar(Rs), N_GC);
+    setLine(arc, k => P.copy(u).multiplyScalar(Math.cos(k*a)).addScaledVector(v, Math.sin(k*a)).multiplyScalar(Rs), N_ARC);
+    setLine(axisL, k => P.copy(r).multiplyScalar((k * 2 - 1) * 2.8), 1);
+    balls.forEach((set, i) => {
+      const nb = st.ballCounts[i];
+      const gap = nb ? Math.PI * 2 / nb : 0;
+      const phi = Math.PI / 2 + i * gap / 4 + 0.38 * ballDir[i] * ti[i];
+      set.forEach((m, j) => {
+        m.visible = j < nb;
+        if (m.visible) m.position.set(Math.cos(phi + j * gap) * orbitR, 0, Math.sin(phi + j * gap) * orbitR);
+      });
+    });
+
+    if (!drag){
+      vel.x *= 0.93; vel.y *= 0.93; turn(vel.x, vel.y);
+      if (running && !reduce) turn(dt * 9 * Math.min(k, 1.5) * st.speed, 0);
+    }
+
+    if ((frame++ & 3) === 0) readout(q, a);
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(t0 => { last = t0; canvas.classList.add('on'); tick(t0); });
+})();
+</script>
+</body>
+</html>
