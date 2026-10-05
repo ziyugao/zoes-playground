@@ -761,7 +761,7 @@
   function openDetail(index) {
     if (!visibleItems[index]) return;
     const slug = cardSlug(visibleItems[index].title);
-    if (detailEl) { closeDetail(true); }
+    if (detailEl) { closeDetail(true, true); }
     const fr = document.createElement("iframe");
     fr.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:300;background:#f6f6f7";
     document.body.appendChild(fr);
@@ -776,10 +776,11 @@
     const home = w.document.querySelector(".home img");
     if (av && home) home.src = av.src;
     document.body.style.overflow = "hidden";
+    grid.innerHTML = "";   // unload the live previews while the viewer is up
     if (location.hash !== "#" + slug) history.pushState(null, "", "#" + slug);
   }
 
-  function closeDetail(keepHash) {
+  function closeDetail(keepHash, reopening) {
     if (!detailEl) return;
     detailEl.remove();
     detailEl = null;
@@ -787,6 +788,7 @@
     document.title = "Zoe's Playground";
     if (!keepHash && location.hash) history.pushState(null, "", location.pathname + location.search);
     window.focus();
+    if (!reopening) render();
   }
 
   function syncFromHash() {
@@ -794,7 +796,7 @@
     if (!slug) { closeDetail(true); return; }
     const i = visibleItems.findIndex((it) => cardSlug(it.title) === slug);
     if (i < 0) return;
-    if (detailEl) closeDetail(true);
+    if (detailEl) closeDetail(true, true);
     openDetail(i);
   }
 
@@ -1060,14 +1062,17 @@
       return ia - ib;
     });
 
-    entries.forEach((e, index) => {
-      visibleItems.push(e.item);
-      grid.appendChild(makeCard({ ...e, index }));
-    });
+    entries.forEach((e) => visibleItems.push(e.item));
+
+    // deep link: go straight to the viewer without spinning up every live preview
+    // behind it (several WebGL/video previews at once crash phone browsers)
+    if (!detailEl && location.hash) { syncFromHash(); if (detailEl) return; }
+    if (detailEl) return;
+
+    entries.forEach((e, index) => grid.appendChild(makeCard({ ...e, index })));
 
     fitPreviews();
     requestAnimationFrame(fitPreviews);
-    if (!detailEl && location.hash) syncFromHash();
   }
 
   // ---------- Edit mode: rearrange cards, Remove buttons ----------
